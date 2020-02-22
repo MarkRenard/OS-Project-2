@@ -20,7 +20,7 @@ static void createChild(Options opts, int bufferSize);
 static void waitForChildren(Clock * clockPtr);
 static void cleanUpAndKillEverything(char * shm);
 
-const static Clock CLOCK_INCREMENT = {0, 10000}; // Virtual time increment
+const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
 const static Clock MAX_TIME = {2, 0};		 // Time limit for children
 
 int main(int argc, char * argv[]){
@@ -39,25 +39,13 @@ int main(int argc, char * argv[]){
 
 	// Sets clock to 0
 	Clock * clockPtr = initializeClock((Clock *)shm);
-	
-	printf("BEFORE CREATE CHILDREN\n");
-	fflush(stdout);
 
 	// Forks and execs child
 	createChildren(opts, bufferSize);
 	
-	printf("AFTER CREATECHILDREN\n");
-	fflush(stdout);
 	// Waits for children to finish executing
 	waitForChildren(clockPtr);
 	
-	// Prints value of clock;
-	printf("oss - Seconds: %d Nanoseconds: %d\n",
-		clockPtr->seconds,
-		clockPtr->nanoseconds
-	);
-	fflush(stdout);
-
 	// Detatches from and removes shared memory segment
 	cleanUpAndKillEverything(shm);	
 
@@ -78,14 +66,6 @@ static void createChild(Options opts, int bufferSize){
 
 	// Forks
 	if ((pid = fork()) == -1) perrorExit("createChild faild to fork");
-	if (pid == 0){
-		printf("Child created!\n");
-		fflush(stdout);
-	}
-	if (pid > 0){
-		printf("Parent still executing!\n");
-		fflush(stdout);
-	}
 
 	// Tests exec
 	char buff[100];
@@ -100,13 +80,7 @@ static void createChild(Options opts, int bufferSize){
 static void waitForChildren(Clock * clock){
 	pid_t child;
 
-	printf("Wainting for children - Seconds: %d Nanoseconds: %d\n",
-		clock->seconds,
-		clock->nanoseconds
-	);
-	fflush(stdout);
-
-	while ((child = waitpid(-1, NULL, WNOHANG)) == 0 && clockCompare(clock, &MAX_TIME) < 0){
+	while ((child = waitpid(-1, NULL, WNOHANG)) == 0 ){
 
 		// Increments and prints clock
 		incrementClock(clock, CLOCK_INCREMENT);
@@ -118,9 +92,11 @@ static void waitForChildren(Clock * clock){
 		
 		// Breaks if there are no children or non-interrupt error
 		if ((child == -1) && (errno != EINTR)) break;
+
+		// Kills children if time limit reached
+		if (clockCompare(clock, &MAX_TIME) >= 0)
+			 cleanUpAndKillEverything((char*)clock);
 	}
-	printf("child: %d, clockCompare: %d\n", (int)child, clockCompare(clock, &MAX_TIME));
-	fflush(stdout);
 }
 
 static void cleanUpAndKillEverything(char * shm){
