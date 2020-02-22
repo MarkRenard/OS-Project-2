@@ -33,6 +33,16 @@ int main(int argc, char * argv[]){
 	// Parses options, printing help and exiting on -h
 	opts = getOptions(argc, argv);
 
+	/* DEBUG */
+	printf("n - %d\ns - %d\nb - %d\ni = %d\no - %s\n",
+                opts.numChildrenTotal,
+                opts.simultaneousChildren,
+                opts.beginningIntTested,
+                opts.increment,
+                opts.outputFileName
+        );
+	sleep(10);
+
 	// Creates shared memory region
 	bufferSize = sizeof(Clock) + opts.numChildrenTotal * sizeof(int);
 	shm = (char *) sharedMemory(bufferSize, IPC_CREAT);
