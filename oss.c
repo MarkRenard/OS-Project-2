@@ -8,18 +8,20 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "ossOptions.h"
 #include "sharedMemory.h"
 #include "clock.h"
 #include "perrorExit.h"
 
-static Clock * initializeClock(char * shm);
 static void createChildren(Options opts, int bufferSize);
 static void createChild(Options opts, int bufferSize);
 static void waitForChildren(Clock * clockPtr);
+static void cleanUpAndKillEverything(char * shm);
 
-const static int CLOCK_INCREMENT = 10000;
+const static Clock CLOCK_INCREMENT = {0, 10000}; // Virtual time increment
+const static Clock MAX_TIME = {2, 0};		 // Time limit for children
 
 int main(int argc, char * argv[]){
 	Options opts;	// Options struct defined in ossOptions.h
@@ -36,11 +38,16 @@ int main(int argc, char * argv[]){
 	shm = (char *) sharedMemory(bufferSize, IPC_CREAT);
 
 	// Sets clock to 0
-	Clock * clockPtr = initializeClock(shm);
+	Clock * clockPtr = initializeClock((Clock *)shm);
+	
+	printf("BEFORE CREATE CHILDREN\n");
+	fflush(stdout);
 
 	// Forks and execs child
 	createChildren(opts, bufferSize);
-
+	
+	printf("AFTER CREATECHILDREN\n");
+	fflush(stdout);
 	// Waits for children to finish executing
 	waitForChildren(clockPtr);
 	
@@ -48,24 +55,20 @@ int main(int argc, char * argv[]){
 	printf("oss - Seconds: %d Nanoseconds: %d\n",
 		clockPtr->seconds,
 		clockPtr->nanoseconds
-	);	
+	);
+	fflush(stdout);
 
 	// Detatches from and removes shared memory segment
-	detach(shm);
-	removeSegment();	
+	cleanUpAndKillEverything(shm);	
 
-	return 0;
+	// Should never execute:
+	printf("This line shouldn't execute.");
+	sleep(8);
+
+	return 1;
 }
 
-// Initializes clock in shared memory region shm to 0 seconds 0 nanoseconds
-static Clock * initializeClock(char * shm){
-	Clock * clockPtr = (Clock *) shm;
-	clockPtr->seconds = 0;
-	clockPtr->nanoseconds = 0;
-
-	return clockPtr;
-}
-
+// Creates children up to the specified limits
 static void createChildren(Options opts, int bufferSize){
 	createChild(opts, bufferSize);
 }
@@ -88,18 +91,43 @@ static void createChild(Options opts, int bufferSize){
 	char buff[100];
 	sprintf(buff,"%d", bufferSize);
 	if (pid == 0){
-		int val = execl("./child", "child", "1", "2", buff, NULL);
-		if (val == -1) perrorExit("createChild - exec failed");
+		execl("./child", "child", "1", "2", buff, NULL);
+		perrorExit("createChild - exec failed");
 	}
 
 }
 
 static void waitForChildren(Clock * clock){
 	pid_t child;
-	while ((child = wait(NULL)) ){
+
+	printf("Wainting for children - Seconds: %d Nanoseconds: %d\n",
+		clock->seconds,
+		clock->nanoseconds
+	);
+	fflush(stdout);
+
+	while ((child = waitpid(-1, NULL, WNOHANG)) == 0 && clockCompare(clock, &MAX_TIME) < 0){
+
+		// Increments and prints clock
 		incrementClock(clock, CLOCK_INCREMENT);
-		if ((child == -1) && (errno != EINTR))
-			break;
+		printf("oss - Seconds: %d Nanoseconds: %d\n",
+			clock->seconds,
+			clock->nanoseconds
+		);
+		fflush(stdout);
+		
+		// Breaks if there are no children or non-interrupt error
+		if ((child == -1) && (errno != EINTR)) break;
 	}
+	printf("child: %d, clockCompare: %d\n", (int)child, clockCompare(clock, &MAX_TIME));
+	fflush(stdout);
+}
+
+static void cleanUpAndKillEverything(char * shm){
+	// Detatches from and removes shared memory. Defined in sharedMemory.c
+	detach(shm);
+	removeSegment(); // shmid is in static variable in sharedMemory.c
 	
+	// Kills all processes in the same process group
+	kill(0, SIGQUIT);
 }

@@ -6,7 +6,36 @@
 #include "clock.h"
 #define BILLION 1000000000
 
-void incrementClock(Clock * clock, int increment){	
-	clock->seconds += increment / BILLION;
-	clock->nanoseconds += increment % BILLION;
+// Initializes clock to 0 seconds 0 nanoseconds
+Clock * initializeClock(Clock * clockPtr){
+        clockPtr->seconds = 0;
+        clockPtr->nanoseconds = 0;
+
+        return clockPtr;
+}
+
+// Adds a time increment defined in a clock structure to a clock
+void incrementClock(Clock * clock, Clock increment){	
+	clock->seconds += increment.seconds;
+	clock->nanoseconds += increment.nanoseconds;
+
+	// Carry operations
+	clock->seconds += clock->nanoseconds / BILLION;
+	clock->nanoseconds = clock->nanoseconds % BILLION;
+}
+
+// Returns -1 if the time on clk1 is less, 1 if it's greater, and 0 if equal
+int clockCompare(const Clock * clk1, const Clock * clk2){
+	if (clk1->seconds != clk2->seconds){
+		// Compares seconds if they are not equal
+		if (clk1->seconds < clk2->seconds) return -1;
+		if (clk1->seconds > clk2->seconds) return 1;
+	} else {
+		// Compares nanoseconds if seconds are equal
+		if (clk1->nanoseconds < clk2->nanoseconds) return -1;
+		if (clk1->nanoseconds > clk2->nanoseconds) return 1;
+	}
+
+	// If this statement executes, the two times are equal.
+	return 0;
 }

@@ -10,6 +10,8 @@ typedef struct clock {
 	int nanoseconds;
 } Clock;
 
-void incrementClock(Clock * clock, int increment);
+Clock * initializeClock(Clock * clockPtr);
+void incrementClock(Clock * clock, Clock increment);
+int clockCompare(const Clock * clk1, const Clock * clk2);
 
 #endif

@@ -22,18 +22,16 @@ int main(int argc, char * argv[]){
 	printf("numberToTest: %d\n", numberToTest);
 	printf("bufferSize: %d\n", bufferSize);
 
-	sleep(10);
 
 	Clock * shm = (Clock *)sharedMemory(bufferSize, 0);
 	
-	sleep(1);	
 	
 	printf("child - Seconds: %d Nanoseconds: %d\n",
 		 shm->seconds,
 		 shm->nanoseconds
 	);
 
-	sleep(1);
+	while(1);
 
 	return 0;
 }
