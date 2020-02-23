@@ -21,8 +21,10 @@ static void cleanUp();
 static void createChildren(Options opts, int bufferSize);
 static pid_t createChild(int childIndex, Options opts, int bufferSize);
 static pid_t * pidArray(int numPids);
-static int indexOfChild(pid_t childPid, pid_t * pidArray, int size);
-static void printInfo(FILE * fp, int childIndex, pid_t childPid);
+static int childIndex(pid_t childPid, pid_t * pidArray, int size);
+static void printCreatedInfo(FILE * fp, int childIndex, pid_t childPid);
+static void printCompletedInfo(FILE * fp, int childIndex, pid_t childPid);
+static void printResults(FILE * fp, Options opts);
 
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
 const static char * CHILD_PATH = "./child";	  // Path to child executable
@@ -123,6 +125,7 @@ static void createChildren(Options opts, int shmSize){
 	int i;
 	for(i = 0; i < initial; i++){
 		childPids[i] = createChild(i, opts, shmSize);
+		printCreatedInfo(fp, i, childPids[i]);
 	}
 	numCreated = initial;
 
@@ -143,19 +146,26 @@ static void createChildren(Options opts, int shmSize){
 		if (returnVal != 0){
 			
 			// Prints info on the finished child
-			int childIndex = indexOfChild(returnVal, childPids, numTotal);
-			printInfo(fp, childIndex, returnVal);
+			int index = childIndex(returnVal, childPids, numTotal);
+			printCompletedInfo(fp, index, returnVal);
 			numFinished++;
 
 			// Creates a replacement child if necessary
 			if (numCreated < numTotal){
-				childPids[numCreated] = \
-					createChild(numCreated, opts, shmSize);
+				pid_t pid; // Temporary storage
+
+				pid = createChild(numCreated, opts, shmSize);
+				childPids[numCreated] = pid;
+				
+				//Prints info on newly created child
+				printCreatedInfo(fp, numCreated, pid);
+
 				numCreated++;
 			}
 		}
 	}
 
+	printResults(fp, opts);
 	fclose(fp);	
 }
 
@@ -205,7 +215,7 @@ static pid_t * pidArray(int numPids){
 }
 
 // Returns the logical identifier of a child process stored in a pid array
-static int indexOfChild(pid_t childPid, pid_t * pidArray, int size){
+static int childIndex(pid_t childPid, pid_t * pidArray, int size){
 	int i;
 	for (i = 0; i < size; i++){
 		if (pidArray[i] == childPid){
@@ -216,35 +226,78 @@ static int indexOfChild(pid_t childPid, pid_t * pidArray, int size){
 	}
 
 	// Exits if no child is found
-	char buff[100];
-	sprintf(buff, "Couldn't find index of child with pid %d", (int)childPid);
-	perrorExit(buff);
+	char buf[100];
+	sprintf(buf, "Couldn't find index of child with pid %d", (int)childPid);
+	perrorExit(buf);
 
 	return -1;
 }
 
+// Prints a child's index, pid, and current simulated time as creation time
+static void printCreatedInfo(FILE * fp, int childIndex, pid_t childPid){
+	fprintf(fp, "%d : %d - Child %d with pid %d created! \n\n",
+		((Clock *)shm)->seconds,
+		((Clock *)shm)->nanoseconds,
+		childIndex,
+		(int)childPid
+	);
+	
+}
+
 // Prints info on the results of a child process that has terminated
-static void printInfo(FILE * fp, int childIndex, pid_t childPid){
+static void printCompletedInfo(FILE * fp, int childIndex, pid_t childPid){
 	
 	// Stores the location of the result in shared memory
 	int * result = (int *)(shm + sizeof(Clock) + childIndex * sizeof(int));
 
 	// Prints the index, pid, and termination time of the process
-	fprintf(fp, "Child %d with pid %d terminated after %d seconds and"
-		" %d nanoseconds of simulated time.\n",
-		childIndex,
-		(int)childPid,
+	fprintf(fp, "%d : %d - Child %d with pid %d terminated.\n",
 		((Clock *)shm)->seconds,
-		((Clock *)shm)->nanoseconds
+		((Clock *)shm)->nanoseconds,
+		childIndex,
+		(int)childPid
 	);
 
 	// Prints the results of computation
 	if (*result == -1){
 		fprintf(fp, "Time limit exceeded, no result obtained.\n\n");
 	} else if (*result < 0){
-		fprintf(fp, "%d is composite.\n\n", (*result * -1));
+		fprintf(fp, "It found that %d is NOT prime.\n\n", -*result);
 	} else {
-		fprintf(fp, "%d is prime!\n\n", *result);
+		fprintf(fp, "It found that %d is prime!\n\n", *result);
 	}
+	fflush(stdout);
 }
 
+// Prints lists of numbers with primality prime, not prime, and not determined
+static void printResults(FILE * fp, Options opts){
+	int * array;	// Pointer to shared array in shared memory
+	int i;		// Index variable
+	int n;		// The number that was tested
+
+	// Gets shared array from shared memory
+	array = (int *)(shm + sizeof(Clock));
+
+	// Prints prime numbers
+	fprintf(fp, "\nThe following were found to be prime:\n\t");
+	for (i = 0; i < opts.numChildrenTotal; i++)
+		if (array[i] > 0) fprintf(fp, "%d ", array[i]);
+
+	// Prints non-primes
+	fprintf(fp, "\n\nThe following were found NOT to be prime:\n\t");
+	for (i = 0; i < opts.numChildrenTotal; i++)
+		if (array[i] < 0) fprintf(fp, "%d ", -array[i]);
+
+	// Prints numbers the primality of which was not determined
+	fprintf(fp, "\n\nThe primality of the following was not determined"
+		"due to time constraints:\n"
+	);
+	for (i = 0; i < opts.numChildrenTotal; i++){
+		if (array[i] == -1){
+
+			// Computes the tested integer for 
+			n = opts.beginningIntTested + i * opts.increment;
+			fprintf(fp, "%d ", n);
+		}
+	}			
+}
