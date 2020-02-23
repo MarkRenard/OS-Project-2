@@ -16,12 +16,13 @@
 #include "perrorExit.h"
 
 static void createChildren(Options opts, int bufferSize);
-static void createChild(Options opts, int bufferSize);
-static void waitForChildren(Clock * clockPtr);
+static pid_t createChild(int childIndex, int numberToTest, int bufferSize);
+//static void waitForChildren(Clock * clockPtr);
 static void cleanUp(char * shm);
 
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
 const static Clock MAX_TIME = {2, 0};		 // Time limit for children
+const static char * CHILD_PATH = "./child";
 
 int main(int argc, char * argv[]){
 	Options opts;	// Options struct defined in ossOptions.h
@@ -34,11 +35,15 @@ int main(int argc, char * argv[]){
 	opts = getOptions(argc, argv);
 
 	/* DEBUG */
-	printf("n - %d\ns - %d\nb - %d\ni = %d\no - %s\n",
+        printf("n - %d\nnStr - %s\ns - %d\nsStr - %s\nb - %d\nbStr - %s\ni - %d\niStr - %s\no - %s\n",
                 opts.numChildrenTotal,
+                opts.numChildrenTotalStr,
                 opts.simultaneousChildren,
+                opts.simultaneousChildrenStr,
                 opts.beginningIntTested,
+                opts.beginningIntTestedStr,
                 opts.increment,
+                opts.incrementStr,
                 opts.outputFileName
         );
 
@@ -51,7 +56,7 @@ int main(int argc, char * argv[]){
 	createChildren(opts, bufferSize);
 	
 	// Waits for children to finish executing
-	waitForChildren((Clock *) shm);
+//	waitForChildren((Clock *) shm);
 	
 	// Detatches from and removes shared memory segment
 	cleanUp(shm);	
@@ -61,39 +66,53 @@ int main(int argc, char * argv[]){
 
 // Creates children up to the specified limits
 static void createChildren(Options opts, int bufferSize){
-	createChild(opts, bufferSize);
+	createChild(2, 3, bufferSize);
 }
 
-static void createChild(Options opts, int bufferSize){
-	pid_t pid;	// Child pid
+// Forks and execs child with params as command line args, returns pid
+static pid_t createChild(int childIndex, int numberToTest, int bufferSize){
+	pid_t pid;// Child pid
 
 	// Forks
 	if ((pid = fork()) == -1) perrorExit("createChild faild to fork");
 
-	// Tests exec
-	char buff[100];
-	sprintf(buff,"%d", bufferSize);
+	// Execs if child, returns pid of child if parent
 	if (pid == 0){
-		execl("./child", "child", "1", "2", buff, NULL);
+		// Converts integer args to strings
+		char index[100];
+		sprintf(index, "%d", childIndex);
+	
+		char toTest[100];
+		sprintf(toTest, "%d", numberToTest);
+
+		char buff[100];
+		sprintf(buff, "%d", bufferSize);
+
+		// Execs child
+		execl(CHILD_PATH, CHILD_PATH, index, toTest, buff, NULL);
 		perrorExit("createChild - exec failed");
 	}
-
+	
+	// Returns pid of child to parent
+	return pid;
+	
 }
 
+/*
 static void waitForChildren(Clock * clock){
 	pid_t child;
 	int childIndex = 0;
 
 	while ((child = waitpid(-1, &childIndex, WNOHANG)) >= 0 ){
 
-/*		// Increments and prints clock
+		// Increments and prints clock
 		incrementClock(clock, CLOCK_INCREMENT);
 		printf("oss - Seconds: %d Nanoseconds: %d\n",
 			clock->seconds,
 			clock->nanoseconds
 		);
 		fflush(stdout);
-*/		
+		
 		// Breaks if there are no children or non-interrupt error
 		if ((child == -1) && (errno != EINTR)) break;
 
@@ -101,11 +120,8 @@ static void waitForChildren(Clock * clock){
 		if (clockCompare(clock, &MAX_TIME) >= 0)
 			 cleanUp((char*)clock);
 	}
-
-	// Print child index
-	printf("Child index: %d\n", childIndex);
-	fflush(stdout);
 }
+*/
 
 static void cleanUp(char * shm){
 	// Detatches from and removes shared memory. Defined in sharedMemory.c

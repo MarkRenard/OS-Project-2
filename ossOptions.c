@@ -13,22 +13,49 @@
 #include <errno.h>
 #include <unistd.h>
 
+
+/* Function Prototypes */
+
 static void printHelpMsg(char * exeName);
 static void printErrorMsg(char * exeName, char opt);
 static int getInt(char * str);
+
+
+/* Named Constants */
+
 // Usage message that prints when the user enteres -h, printed by printHelpMesg
 const static char * USAGE_FORMAT =
  "Usage: %s [-h] [-n x -s x -b B -i I -o filename]\n"
  " -h           Prints this help message\n"
- " -n x         Maximum total number of child processes (default 4)\n"
- " -s x         Maximum number of simultaneous children (default 2)\n"
- " -b B         Start of the sequence to be tested for primality (default 5)\n"
- " -i I         Increment between numbers to be tested (default 2)\n"
+ " -n x         Maximum total number of child processes (default %d)\n"
+ " -s x         Maximum number of simultaneous children (default %d, max %d)\n"
+ " -b B         Start of the sequence to be tested for primality (default %d)\n"
+ " -i I         Increment between numbers to be tested (default %d)\n"
  " -o filename  Specifies the name of the output file (default %s)\n"
  "Type cat README for more information.\n";
 
+// Default values
+const char * DEFAULT_N_STR = "4";
+const int DEFAULT_N = 4;
+
+const char * DEFAULT_S_STR = "2";
+const int DEFAULT_S = 2;
+
+const char * DEFAULT_B_STR = "5";
+const int DEFAULT_B = 5;
+
+const char * DEFAULT_I_STR = "2";
+const int DEFAULT_I = 2;
+
 // The default name of the log file
 const char * DEFAULT_FILE_NAME = "output.log";
+
+// The maximum number of simultaneous processes
+const int MAX_SIMULTANEOUS = 20;
+const char * MAX_SIMULTANEOUS_STR = "20";
+
+
+/* Function Definitions */
 
 // Returns an Options struct which contains the optarg
 Options getOptions(int argc, char * argv[]){
@@ -37,29 +64,55 @@ Options getOptions(int argc, char * argv[]){
 	opterr = 0; // Turns off default error messages
 
 	// Initializes return value to default values
-	Options opts = { 4, 2, 5, 2, NULL }; 
+	Options opts = {
+		DEFAULT_N,
+		DEFAULT_N_STR,
+		DEFAULT_S,
+		DEFAULT_S_STR,
+		DEFAULT_B,
+		DEFAULT_B_STR,
+		DEFAULT_I,
+		DEFAULT_I_STR,
+		DEFAULT_FILE_NAME
+	 }; 
 
 	// Cycles through entered options
 	while((option = getopt(argc, argv, "hn:s:b:i:o:")) != -1){
 		switch(option){
 		case 'h':
+			// Prints help and exits on -h
 			printHelpMsg(argv[0]);
 			exit(0);
 		case 'n':
 			printf("option n with value %d\n", atoi(optarg));
 			opts.numChildrenTotal = getInt(optarg);
+			opts.numChildrenTotalStr = optarg;
 			break;
 		case 's':
 			printf("option s with value %d\n", atoi(optarg));
 			opts.simultaneousChildren = getInt(optarg);
+
+			// Validates -s option, replaces with max if invalid
+			if (opts.simultaneousChildren > MAX_SIMULTANEOUS){
+				printf("Too many simultaneous processes!\n");
+				printf("Using max value of %d instead.\n\n",
+					MAX_SIMULTANEOUS);
+				opts.simultaneousChildren = MAX_SIMULTANEOUS;
+				opts.simultaneousChildrenStr = \
+					MAX_SIMULTANEOUS_STR;
+			} else {
+				opts.simultaneousChildrenStr = optarg;
+			}	
 			break;
 		case 'b':
 			printf("option b with value %d\n", atoi(optarg));
 			opts.beginningIntTested = getInt(optarg);
+			opts.beginningIntTestedStr = optarg;
 			break;
 		case 'i':
 			printf("option i with value %d\n", atoi(optarg));
 			opts.increment = getInt(optarg);
+			opts.incrementStr = optarg;
 			break;
 		case 'o':
 			printf("option o with value %s\n", optarg);
@@ -71,14 +124,18 @@ Options getOptions(int argc, char * argv[]){
 		}
 	}
 
-	printf("n - %d\ns - %d\nb - %d\ni = %d\no - %s\n",
+/*	printf("n - %d\nnStr - %s\ns - %d\nsStr - %s\nb - %d\nbStr - %s\ni - %d\niStr - %s\no - %s\n",
 		opts.numChildrenTotal,
+		opts.numChildrenTotalStr,
 		opts.simultaneousChildren,
+		opts.simultaneousChildrenStr,
 		opts.beginningIntTested,
+		opts.beginningIntTestedStr,
 		opts.increment,
+		opts.incrementStr,
 		opts.outputFileName
 	);
-
+*/
 	return opts;
 }
 
