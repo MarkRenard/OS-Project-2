@@ -17,19 +17,26 @@
 
 static void createChildren(Options opts, int bufferSize);
 static pid_t createChild(int childIndex, int numberToTest, int bufferSize);
+
 //static void waitForChildren(Clock * clockPtr);
-static void cleanUp(char * shm);
+void cleanUpAndExit(int param);
+static void cleanUp();
+static void addSignalHandlers();
 
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
-const static Clock MAX_TIME = {2, 0};		 // Time limit for children
-const static char * CHILD_PATH = "./child";
+const static Clock MAX_TIME = {2, 0};		  // Time limit for children
+const static char * CHILD_PATH = "./child";	  // Path to child executable
+
+static char * shm; // Pointer to the shared memory region
 
 int main(int argc, char * argv[]){
 	Options opts;	// Options struct defined in ossOptions.h
-	char * shm;	// Pointer to first byte of shared memory region
 	int bufferSize; // The number of bytes in the shared memory region
-
 	exeName = argv[0]; // Assigns to global defined in perrorExit.c
+
+	// Sets alarm and signal handling
+	alarm(2);
+	addSignalHandlers();
 
 	// Parses options, printing help and exiting on -h
 	opts = getOptions(argc, argv);
@@ -54,14 +61,32 @@ int main(int argc, char * argv[]){
 
 	// Forks and execs child
 	createChildren(opts, bufferSize);
-	
+
+	pid_t pid = wait(NULL);	
 	// Waits for children to finish executing
 //	waitForChildren((Clock *) shm);
 	
 	// Detatches from and removes shared memory segment
-	cleanUp(shm);	
+	cleanUp();	
 
 	return 0;
+}
+
+static void addSignalHandlers(){
+	struct sigaction sigact;
+
+	sigact.sa_handler = cleanUpAndExit;
+	sigact.sa_flags = 0;
+
+	if ((sigemptyset(&sigact.sa_mask) == -1) ||
+	    (sigaction(SIGALRM, &sigact, NULL)) == -1 ||
+	    (sigaction(SIGINT, &sigact, NULL))	== -1)
+		perrorExit("Faild to install SIGALARM signal handler");
+}
+
+void cleanUpAndExit(int param){
+	cleanUp();
+	perrorExit("Terminating after recieving a signal");
 }
 
 // Creates children up to the specified limits
@@ -123,7 +148,7 @@ static void waitForChildren(Clock * clock){
 }
 */
 
-static void cleanUp(char * shm){
+static void cleanUp(){
 	// Detatches from and removes shared memory. Defined in sharedMemory.c
 	detach(shm);
 	removeSegment(); // shmid is in static variable in sharedMemory.c

@@ -31,7 +31,8 @@ int main(int argc, char * argv[]){
 		 shm->nanoseconds
 	);
 
-//	while(1);
+	while(1);
 
-	return (char) index;
+	return 0;
+
 }
