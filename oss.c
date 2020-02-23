@@ -18,7 +18,7 @@
 static void createChildren(Options opts, int bufferSize);
 static void createChild(Options opts, int bufferSize);
 static void waitForChildren(Clock * clockPtr);
-static void cleanUpAndKillEverything(char * shm);
+static void cleanUp(char * shm);
 
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
 const static Clock MAX_TIME = {2, 0};		 // Time limit for children
@@ -41,29 +41,22 @@ int main(int argc, char * argv[]){
                 opts.increment,
                 opts.outputFileName
         );
-	sleep(10);
 
-	// Creates shared memory region
+	// Creates and initializes shared memory region
 	bufferSize = sizeof(Clock) + opts.numChildrenTotal * sizeof(int);
 	shm = (char *) sharedMemory(bufferSize, IPC_CREAT);
-
-	// Sets clock to 0
-	Clock * clockPtr = initializeClock((Clock *)shm);
+	initializeSharedMemory(shm, bufferSize, '\0');
 
 	// Forks and execs child
 	createChildren(opts, bufferSize);
 	
 	// Waits for children to finish executing
-	waitForChildren(clockPtr);
+	waitForChildren((Clock *) shm);
 	
 	// Detatches from and removes shared memory segment
-	cleanUpAndKillEverything(shm);	
+	cleanUp(shm);	
 
-	// Should never execute:
-	printf("This line shouldn't execute.");
-	sleep(8);
-
-	return 1;
+	return 0;
 }
 
 // Creates children up to the specified limits
@@ -89,31 +82,37 @@ static void createChild(Options opts, int bufferSize){
 
 static void waitForChildren(Clock * clock){
 	pid_t child;
+	int childIndex = 0;
 
-	while ((child = waitpid(-1, NULL, WNOHANG)) == 0 ){
+	while ((child = waitpid(-1, &childIndex, WNOHANG)) >= 0 ){
 
-		// Increments and prints clock
+/*		// Increments and prints clock
 		incrementClock(clock, CLOCK_INCREMENT);
 		printf("oss - Seconds: %d Nanoseconds: %d\n",
 			clock->seconds,
 			clock->nanoseconds
 		);
 		fflush(stdout);
-		
+*/		
 		// Breaks if there are no children or non-interrupt error
 		if ((child == -1) && (errno != EINTR)) break;
 
 		// Kills children if time limit reached
 		if (clockCompare(clock, &MAX_TIME) >= 0)
-			 cleanUpAndKillEverything((char*)clock);
+			 cleanUp((char*)clock);
 	}
+
+	// Print child index
+	printf("Child index: %d\n", childIndex);
+	fflush(stdout);
 }
 
-static void cleanUpAndKillEverything(char * shm){
+static void cleanUp(char * shm){
 	// Detatches from and removes shared memory. Defined in sharedMemory.c
 	detach(shm);
 	removeSegment(); // shmid is in static variable in sharedMemory.c
 	
 	// Kills all processes in the same process group
+	signal(SIGQUIT, SIG_IGN);
 	kill(0, SIGQUIT);
 }

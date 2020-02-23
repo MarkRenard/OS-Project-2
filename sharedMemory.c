@@ -39,3 +39,10 @@ void removeSegment(){
 	if (shmctl(shmid, IPC_RMID, NULL) == -1)
 		perrorExit("removeSegment failed");
 }
+
+void initializeSharedMemory(char * shm, int bufferSize, char byte){
+	int i;
+	for (i = 0; i < bufferSize; i++){
+		shm[i] = byte;
+	}
+}
