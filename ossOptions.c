@@ -154,7 +154,8 @@ static int getInt(char * str){
 
 // Prints USAGE_FORMAT with exeName to stdout
 static void printHelpMsg(char * exeName){
-	printf(USAGE_FORMAT, exeName, DEFAULT_FILE_NAME);
+	printf(USAGE_FORMAT, exeName, DEFAULT_N, DEFAULT_S, MAX_SIMULTANEOUS,
+		DEFAULT_B, DEFAULT_I, DEFAULT_FILE_NAME);
 }
 
 // Prints an invalid option error message using perror

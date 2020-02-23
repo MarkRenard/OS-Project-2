@@ -15,23 +15,23 @@
 #include "clock.h"
 #include "perrorExit.h"
 
-static void createChildren(Options opts, int bufferSize);
-static pid_t createChild(int childIndex, int numberToTest, int bufferSize);
-
-//static void waitForChildren(Clock * clockPtr);
+static void addSignalHandlers();
 void cleanUpAndExit(int param);
 static void cleanUp();
-static void addSignalHandlers();
+static void createChildren(Options opts, int bufferSize);
+static pid_t createChild(int childIndex, Options opts, int bufferSize);
+static pid_t * pidArray(int numPids);
+static int indexOfChild(pid_t childPid, pid_t * pidArray, int size);
+static void printInfo(FILE * fp, int childIndex, pid_t childPid);
 
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
-const static Clock MAX_TIME = {2, 0};		  // Time limit for children
 const static char * CHILD_PATH = "./child";	  // Path to child executable
 
 static char * shm; // Pointer to the shared memory region
 
 int main(int argc, char * argv[]){
-	Options opts;	// Options struct defined in ossOptions.h
-	int bufferSize; // The number of bytes in the shared memory region
+	Options opts;	   // Options struct defined in ossOptions.h
+	int bufferSize;    // The number of bytes in the shared memory region
 	exeName = argv[0]; // Assigns to global defined in perrorExit.c
 
 	// Sets alarm and signal handling
@@ -62,9 +62,7 @@ int main(int argc, char * argv[]){
 	// Forks and execs child
 	createChildren(opts, bufferSize);
 
-	pid_t pid = wait(NULL);	
-	// Waits for children to finish executing
-//	waitForChildren((Clock *) shm);
+	//wait(NULL);	
 	
 	// Detatches from and removes shared memory segment
 	cleanUp();	
@@ -72,6 +70,7 @@ int main(int argc, char * argv[]){
 	return 0;
 }
 
+// Registers cleanUpAndExit as handler for signals SIGALRM and SIGINT
 static void addSignalHandlers(){
 	struct sigaction sigact;
 
@@ -81,73 +80,16 @@ static void addSignalHandlers(){
 	if ((sigemptyset(&sigact.sa_mask) == -1) ||
 	    (sigaction(SIGALRM, &sigact, NULL)) == -1 ||
 	    (sigaction(SIGINT, &sigact, NULL))	== -1)
-		perrorExit("Faild to install SIGALARM signal handler");
+		perrorExit("Faild to install signal handler");
 }
 
+// Signal handler that deallocates shared memory, terminates children, and exits
 void cleanUpAndExit(int param){
 	cleanUp();
 	perrorExit("Terminating after recieving a signal");
 }
 
-// Creates children up to the specified limits
-static void createChildren(Options opts, int bufferSize){
-	createChild(2, 3, bufferSize);
-}
-
-// Forks and execs child with params as command line args, returns pid
-static pid_t createChild(int childIndex, int numberToTest, int bufferSize){
-	pid_t pid;// Child pid
-
-	// Forks
-	if ((pid = fork()) == -1) perrorExit("createChild faild to fork");
-
-	// Execs if child, returns pid of child if parent
-	if (pid == 0){
-		// Converts integer args to strings
-		char index[100];
-		sprintf(index, "%d", childIndex);
-	
-		char toTest[100];
-		sprintf(toTest, "%d", numberToTest);
-
-		char buff[100];
-		sprintf(buff, "%d", bufferSize);
-
-		// Execs child
-		execl(CHILD_PATH, CHILD_PATH, index, toTest, buff, NULL);
-		perrorExit("createChild - exec failed");
-	}
-	
-	// Returns pid of child to parent
-	return pid;
-	
-}
-
-/*
-static void waitForChildren(Clock * clock){
-	pid_t child;
-	int childIndex = 0;
-
-	while ((child = waitpid(-1, &childIndex, WNOHANG)) >= 0 ){
-
-		// Increments and prints clock
-		incrementClock(clock, CLOCK_INCREMENT);
-		printf("oss - Seconds: %d Nanoseconds: %d\n",
-			clock->seconds,
-			clock->nanoseconds
-		);
-		fflush(stdout);
-		
-		// Breaks if there are no children or non-interrupt error
-		if ((child == -1) && (errno != EINTR)) break;
-
-		// Kills children if time limit reached
-		if (clockCompare(clock, &MAX_TIME) >= 0)
-			 cleanUp((char*)clock);
-	}
-}
-*/
-
+// Detatches from and removes shared memory and terminates children
 static void cleanUp(){
 	// Detatches from and removes shared memory. Defined in sharedMemory.c
 	detach(shm);
@@ -157,3 +99,152 @@ static void cleanUp(){
 	signal(SIGQUIT, SIG_IGN);
 	kill(0, SIGQUIT);
 }
+
+// Creates children up to the specified limits
+static void createChildren(Options opts, int shmSize){
+
+	// Assigns options to local variables for readability
+	int numTotal = opts.numChildrenTotal;
+	int simultaneous = opts.simultaneousChildren;
+	
+	int numCreated = 0;	// Number of children created so far
+	int numFinished = 0;	// Number of children that finished executing
+
+	pid_t returnVal;	// Stores the return value of waitpid
+	pid_t * childPids;	// Array of pids of all created child processes
+
+	FILE * fp = fopen(opts.outputFileName, "w+"); // Log file handler	
+
+	// Initializes empty array of pids
+	childPids = pidArray(numTotal);
+
+	// Creates initial simultaneous child processes
+	int initial = (simultaneous < numTotal) ? simultaneous : numTotal;
+	int i;
+	for(i = 0; i < initial; i++){
+		childPids[i] = createChild(i, opts, shmSize);
+	}
+	numCreated = initial;
+
+	// Launches new processes when old ones finish until numTotal reached
+	while (numFinished < numTotal){
+		incrementClock((Clock *)shm, CLOCK_INCREMENT);
+
+		// Gets pid of finished child if status is immediately available
+		returnVal = waitpid(-1, NULL, WNOHANG);
+
+		// Checks for unrecoverable errors and exits
+		if ((returnVal == -1) && (errno != EINTR)){
+			fclose(fp);
+			perrorExit("createChildren - waitpid error");
+		}
+		
+		// If a child finished, prints info and replaces if necessary
+		if (returnVal != 0){
+			
+			// Prints info on the finished child
+			int childIndex = indexOfChild(returnVal, childPids, numTotal);
+			printInfo(fp, childIndex, returnVal);
+			numFinished++;
+
+			// Creates a replacement child if necessary
+			if (numCreated < numTotal){
+				childPids[numCreated] = \
+					createChild(numCreated, opts, shmSize);
+				numCreated++;
+			}
+		}
+	}
+
+	fclose(fp);	
+}
+
+// Forks and execs child with params as command line args, returns pid
+static pid_t createChild(int childIndex, Options opts, int shmSize){
+	pid_t pid; 		// Child pid
+	int testNum;	// The number the child will test for primality
+
+	// Forks
+	if ((pid = fork()) == -1) perrorExit("createChild faild to fork");
+
+	// Execs if child, returns pid of child if parent
+	if (pid == 0){
+		// Computes number to test
+		testNum = opts.beginningIntTested + childIndex * opts.increment;
+
+		// Converts integer args to strings
+		char index[100];
+		sprintf(index, "%d", childIndex);
+	
+		char toTest[100];
+		sprintf(toTest, "%d", testNum);
+
+		char shmSz[100];
+		sprintf(shmSz, "%d", shmSize);
+
+		// Execs child
+		execl(CHILD_PATH, CHILD_PATH, index, toTest, shmSz, NULL);
+		perrorExit("createChild - exec failed");
+	}
+	
+	// Returns pid of child to parent
+	return pid;	
+}
+
+// Returns a pointer to empty allocated memory for numPids pids
+static pid_t * pidArray(int numPids){
+	pid_t * arr = malloc(numPids * sizeof(pid_t));
+
+	// Initializes pids to 0	
+	int i;
+	for (i = 0; i < numPids; i++){
+		arr[i] = 0;
+	}
+
+	return arr;
+}
+
+// Returns the logical identifier of a child process stored in a pid array
+static int indexOfChild(pid_t childPid, pid_t * pidArray, int size){
+	int i;
+	for (i = 0; i < size; i++){
+		if (pidArray[i] == childPid){
+			pidArray[i] = 0; // Zeros pid in case it's re-used
+			printf("Index of child %d is %d!\n\n", childPid, i);
+			return i;
+		}
+	}
+
+	// Exits if no child is found
+	char buff[100];
+	sprintf(buff, "Couldn't find index of child with pid %d", (int)childPid);
+	perrorExit(buff);
+
+	return -1;
+}
+
+// Prints info on the results of a child process that has terminated
+static void printInfo(FILE * fp, int childIndex, pid_t childPid){
+	
+	// Stores the location of the result in shared memory
+	int * result = (int *)(shm + sizeof(Clock) + childIndex * sizeof(int));
+
+	// Prints the index, pid, and termination time of the process
+	fprintf(fp, "Child %d with pid %d terminated after %d seconds and"
+		" %d nanoseconds of simulated time.\n",
+		childIndex,
+		(int)childPid,
+		((Clock *)shm)->seconds,
+		((Clock *)shm)->nanoseconds
+	);
+
+	// Prints the results of computation
+	if (*result == -1){
+		fprintf(fp, "Time limit exceeded, no result obtained.\n\n");
+	} else if (*result < 0){
+		fprintf(fp, "%d is composite.\n\n", (*result * -1));
+	} else {
+		fprintf(fp, "%d is prime!\n\n", *result);
+	}
+}
+

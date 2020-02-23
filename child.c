@@ -17,21 +17,24 @@ int main(int argc, char * argv[]){
 	int numberToTest = atoi(argv[2]); // The number to test for primality
 	int bufferSize = atoi(argv[3]);	  // The size of shared memory buffer
 
-	printf("Hello from %s process!\n", exeName);
-	printf("index: %d\n", index);
-	printf("numberToTest: %d\n", numberToTest);
-	printf("bufferSize: %d\n", bufferSize);
+	char * shm = sharedMemory(bufferSize, 0);
+	Clock * clock = (Clock *) shm;
 
-
-	Clock * shm = (Clock *)sharedMemory(bufferSize, 0);
-	
-	
-	printf("child - Seconds: %d Nanoseconds: %d\n",
-		 shm->seconds,
-		 shm->nanoseconds
+	printf( "Hello from %s process!\n"
+		"index: %d\n"
+		"numberToTest: %d\n"
+		"bufferSize: %d\n"
+		"Seconds: %d Nanoseconds: %d\n\n",
+		exeName,
+		index,
+		numberToTest,
+		bufferSize,
+		clock->seconds,
+		clock->nanoseconds
 	);
-
-	while(1);
+	fflush(stdout);
+	
+	//while(1);
 
 	return 0;
 
