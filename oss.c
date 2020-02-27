@@ -15,8 +15,11 @@
 #include "clock.h"
 #include "perrorExit.h"
 
+
+/* Prototypes */
+
 static void addSignalHandlers();
-void cleanUpAndExit(int param);
+static void cleanUpAndExit(int param);
 static void cleanUp();
 static void createChildren(Options opts, int bufferSize);
 static pid_t createChild(int childIndex, Options opts, int bufferSize);
@@ -26,14 +29,23 @@ static void printCreatedInfo(FILE * fp, int childIndex, pid_t childPid);
 static void printCompletedInfo(FILE * fp, int childIndex, pid_t childPid);
 static void printResults(FILE * fp, Options opts);
 
+
+/* Named Constants */
+
 const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
 const static char * CHILD_PATH = "./child";	  // Path to child executable
 
-static char * shm; // Pointer to the shared memory region
+
+/* Static Global Variables */
+
+static char * shm; 	   	// Pointer to the shared memory region
+static FILE * fp = NULL;  	// Output file handler
+static const char * filePath;	// Path to the output file
 
 int main(int argc, char * argv[]){
 	Options opts;	   // Options struct defined in ossOptions.h
 	int bufferSize;    // The number of bytes in the shared memory region
+
 	exeName = argv[0]; // Assigns to global defined in perrorExit.c
 
 	// Sets alarm and signal handling
@@ -42,6 +54,9 @@ int main(int argc, char * argv[]){
 
 	// Parses options, printing help and exiting on -h
 	opts = getOptions(argc, argv);
+	
+	// Stores the name of the output file
+	filePath = opts.outputFileName;
 
 	/* DEBUG */
         printf("n - %d\nnStr - %s\ns - %d\nsStr - %s\nb - %d\nbStr - %s\ni - %d\niStr - %s\no - %s\n",
@@ -63,10 +78,8 @@ int main(int argc, char * argv[]){
 
 	// Forks and execs child
 	createChildren(opts, bufferSize);
-
-	//wait(NULL);	
 	
-	// Detatches from and removes shared memory segment
+	// Prints clock, detatches from and removes shared memory segment
 	cleanUp();	
 
 	return 0;
@@ -88,16 +101,28 @@ static void addSignalHandlers(){
 // Signal handler that deallocates shared memory, terminates children, and exits
 void cleanUpAndExit(int param){
 	cleanUp();
-	perrorExit("Terminating after recieving a signal");
+	perror("Terminating after recieving a signal");
+	exit(1);
 }
 
-// Detatches from and removes shared memory and terminates children
+// Prints clock, detatches from and removes shared memory, and terminates children
 static void cleanUp(){
+	perror("Cleaning up!");
+
+	// Prints curent simulated time to output file
+	if (fp == NULL && (fp = fopen(filePath, "w")) == NULL){
+		perror("Couldn't open file");
+	} else {
+		fprintf(fp, "Process terminated at ");
+		printTime(fp, (Clock *)shm);
+		fclose(fp);
+	}
+
 	// Detatches from and removes shared memory. Defined in sharedMemory.c
 	detach(shm);
 	removeSegment(); // shmid is in static variable in sharedMemory.c
 	
-	// Kills all processes in the same process group
+	// Kills all other processes in the same process group
 	signal(SIGQUIT, SIG_IGN);
 	kill(0, SIGQUIT);
 }
@@ -115,7 +140,8 @@ static void createChildren(Options opts, int shmSize){
 	pid_t returnVal;	// Stores the return value of waitpid
 	pid_t * childPids;	// Array of pids of all created child processes
 
-	FILE * fp = fopen(opts.outputFileName, "w+"); // Log file handler	
+	if ((fp = fopen(opts.outputFileName, "w+")) == NULL)
+		perrorExit("Couldn't open file"); 
 
 	// Initializes empty array of pids
 	childPids = pidArray(numTotal);
@@ -138,7 +164,6 @@ static void createChildren(Options opts, int shmSize){
 
 		// Checks for unrecoverable errors and exits
 		if ((returnVal == -1) && (errno != EINTR)){
-			fclose(fp);
 			perrorExit("createChildren - waitpid error");
 		}
 		
@@ -166,7 +191,6 @@ static void createChildren(Options opts, int shmSize){
 	}
 
 	printResults(fp, opts);
-	fclose(fp);	
 }
 
 // Forks and execs child with params as command line args, returns pid
@@ -235,7 +259,7 @@ static int childIndex(pid_t childPid, pid_t * pidArray, int size){
 
 // Prints a child's index, pid, and current simulated time as creation time
 static void printCreatedInfo(FILE * fp, int childIndex, pid_t childPid){
-	fprintf(fp, "%d : %d - Child %d with pid %d created! \n\n",
+	fprintf(fp, "%03d : %09d - Child %d with pid %d created! \n\n",
 		((Clock *)shm)->seconds,
 		((Clock *)shm)->nanoseconds,
 		childIndex,
@@ -251,7 +275,7 @@ static void printCompletedInfo(FILE * fp, int childIndex, pid_t childPid){
 	int * result = (int *)(shm + sizeof(Clock) + childIndex * sizeof(int));
 
 	// Prints the index, pid, and termination time of the process
-	fprintf(fp, "%d : %d - Child %d with pid %d terminated.\n",
+	fprintf(fp, "%03d : %09d - Child %d with pid %d terminated.\n",
 		((Clock *)shm)->seconds,
 		((Clock *)shm)->nanoseconds,
 		childIndex,
@@ -279,14 +303,14 @@ static void printResults(FILE * fp, Options opts){
 	array = (int *)(shm + sizeof(Clock));
 
 	// Prints prime numbers
-	fprintf(fp, "\nThe following were found to be prime:\n\t");
+	fprintf(fp, "\nThe following were found to be prime:\n");
 	for (i = 0; i < opts.numChildrenTotal; i++)
 		if (array[i] > 0) fprintf(fp, "%d ", array[i]);
 
 	// Prints non-primes
-	fprintf(fp, "\n\nThe following were found NOT to be prime:\n\t");
+	fprintf(fp, "\n\nThe following were found NOT to be prime:\n");
 	for (i = 0; i < opts.numChildrenTotal; i++)
-		if (array[i] < 0) fprintf(fp, "%d ", -array[i]);
+		if (array[i] < -1) fprintf(fp, "%d ", -array[i]);
 
 	// Prints numbers the primality of which was not determined
 	fprintf(fp, "\n\nThe primality of the following was not determined"
@@ -299,5 +323,7 @@ static void printResults(FILE * fp, Options opts){
 			n = opts.beginningIntTested + i * opts.increment;
 			fprintf(fp, "%d ", n);
 		}
-	}			
+	}
+	fprintf(fp, "\n\n");
+
 }

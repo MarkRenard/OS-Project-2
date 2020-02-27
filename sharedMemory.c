@@ -13,7 +13,7 @@
 #include "perrorExit.h"
 #include "shmkey.h"
 
-static int shmid;
+static int shmid; // The shmid of the shared memory region
 
 // Returns a pointer to a new shared memory region
 char * sharedMemory(int size, int mask){

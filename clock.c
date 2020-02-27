@@ -4,6 +4,8 @@
 // adds some number of nanoseconds to the time recorded in a virtual clock.
 
 #include "clock.h"
+#include <stdio.h>
+
 #define BILLION 1000000000
 
 // Initializes clock to 0 seconds 0 nanoseconds
@@ -14,8 +16,14 @@ Clock * initializeClock(Clock * clockPtr){
         return clockPtr;
 }
 
+// Copies the time stored in the second clock to the first
+void copyTime(Clock * dest, const Clock * src){
+	dest->seconds = src->seconds;
+	dest->nanoseconds = src->nanoseconds;
+}
+
 // Adds a time increment defined in a clock structure to a clock
-void incrementClock(Clock * clock, Clock increment){	
+void incrementClock(Clock * clock, const Clock increment){	
 	clock->seconds += increment.seconds;
 	clock->nanoseconds += increment.nanoseconds;
 
@@ -38,4 +46,12 @@ int clockCompare(const Clock * clk1, const Clock * clk2){
 
 	// If this statement executes, the two times are equal.
 	return 0;
+}
+
+void printTime(FILE * fp, const Clock * clock){
+	fprintf(fp,
+		"Seconds: %d Nanoseconds: %d\n",
+		clock->seconds,
+		clock->nanoseconds
+	);
 }

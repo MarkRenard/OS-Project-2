@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
 
 char * exeName;
 
@@ -11,5 +13,5 @@ void perrorExit(char * msg){
 	sprintf(errmsg, "%s: Error: %s", exeName, msg);
 	perror(errmsg);
 
-	exit(1);
+	kill(0, SIGINT);
 }

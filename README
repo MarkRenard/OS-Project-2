@@ -1,0 +1,31 @@
+
+
+usage: ./oss [-h] [-n x -s x -b B -i I -o filename]
+ -h           Prints this help message
+ -n x         Maximum total number of child processes (default 4)
+ -s x         Maximum number of simultaneous children (default 2, max 20)
+ -b B         Start of the sequence to be tested for primality (default 5)
+ -i I         Increment between numbers to be tested (default 2)
+ -o filename  Specifies the name of the output file (default output.log)
+
+This program will launch a series of child processes that each determine
+whether a particular integer is prime where the least integer is entered
+using -b, the increment between them is selected with -i, and the number of
+integers tested is entered using -n. It will print the results to the
+file specified by -o, including simulated execution and termination times
+of the child processes.
+
+Functions for parsing options are defined in ossOptions.c.
+
+sharedMemory.c makes creating a single shared memory region for several
+processes that share the key stored in shmkey.h more convenient.
+
+perrorExit.c contains a utility that makes it easier to output
+"./oss: Error: ..." formatted error messages using perror. It stores the
+executable name in a global that can be set with
+
+	exeName = argv[0]
+
+at the beginning of main.
+
+

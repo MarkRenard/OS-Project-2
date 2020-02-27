@@ -5,13 +5,17 @@
 #ifndef CLOCK_H
 #define CLOCK_H
 
+#include <stdio.h>
+
 typedef struct clock {
 	int seconds;
 	int nanoseconds;
 } Clock;
 
 Clock * initializeClock(Clock * clockPtr);
-void incrementClock(Clock * clock, Clock increment);
+void copyTime(Clock * dest, const Clock * src);
+void incrementClock(Clock * clock, const Clock increment);
 int clockCompare(const Clock * clk1, const Clock * clk2);
+void printTime(FILE * fp, const Clock * clock);
 
 #endif
