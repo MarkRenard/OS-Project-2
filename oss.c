@@ -90,7 +90,15 @@ static void addSignalHandlers(){
 // Signal handler that deallocates shared memory, terminates children, and exits
 void cleanUpAndExit(int param){
 	cleanUp();
-	perror("Terminating after recieving a signal");
+
+	// Prints error message
+	char buff[100];
+	sprintf(buff,
+		 "%s: Error: Terminating after receiving a signal",
+		 exeName
+	);
+	perror(buff);
+
 	exit(1);
 }
 
