@@ -84,12 +84,10 @@ Options getOptions(int argc, char * argv[]){
 			printHelpMsg(argv[0]);
 			exit(0);
 		case 'n':
-			printf("option n with value %d\n", atoi(optarg));
 			opts.numChildrenTotal = getInt(optarg);
 			opts.numChildrenTotalStr = optarg;
 			break;
 		case 's':
-			printf("option s with value %d\n", atoi(optarg));
 			opts.simultaneousChildren = getInt(optarg);
 
 			// Validates -s option, replaces with max if invalid
@@ -105,17 +103,14 @@ Options getOptions(int argc, char * argv[]){
 			}	
 			break;
 		case 'b':
-			printf("option b with value %d\n", atoi(optarg));
 			opts.beginningIntTested = getInt(optarg);
 			opts.beginningIntTestedStr = optarg;
 			break;
 		case 'i':
-			printf("option i with value %d\n", atoi(optarg));
 			opts.increment = getInt(optarg);
 			opts.incrementStr = optarg;
 			break;
 		case 'o':
-			printf("option o with value %s\n", optarg);
 			opts.outputFileName = optarg;
 			break;
 		case '?':
@@ -124,18 +119,6 @@ Options getOptions(int argc, char * argv[]){
 		}
 	}
 
-/*	printf("n - %d\nnStr - %s\ns - %d\nsStr - %s\nb - %d\nbStr - %s\ni - %d\niStr - %s\no - %s\n",
-		opts.numChildrenTotal,
-		opts.numChildrenTotalStr,
-		opts.simultaneousChildren,
-		opts.simultaneousChildrenStr,
-		opts.beginningIntTested,
-		opts.beginningIntTestedStr,
-		opts.increment,
-		opts.incrementStr,
-		opts.outputFileName
-	);
-*/
 	return opts;
 }
 

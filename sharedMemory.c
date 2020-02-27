@@ -29,13 +29,11 @@ char * sharedMemory(int size, int mask){
 
 // Detatches the process from shm or exits with error message on failure
 void detach(char * shm){
-	printf("detatching\n");
 	if(shmdt(shm) == -1) perrorExit("Failed to detach");
 }
 
 // Removes a shared memory segment previously created with sharedMemory
 void removeSegment(){
-	printf("removing segment\n");
 	if (shmctl(shmid, IPC_RMID, NULL) == -1)
 		perrorExit("removeSegment failed");
 }

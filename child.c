@@ -40,21 +40,6 @@ int main(int argc, char * argv[]){
 	// Sets pointer to this child's portion of shared results array
 	result = (int *)(shm + sizeof(Clock) + childNum * sizeof(int));
 	
-	// Prints info
-	printf( "Hello from %s process!\n"
-		"childNum: %d\n"
-		"numToTest: %d\n"
-		"bufferSize: %d\n"
-		"Seconds: %d Nanoseconds: %d\n\n",
-		exeName,
-		childNum,
-		numToTest,
-		bufferSize,
-		sharedClock->seconds,
-		sharedClock->nanoseconds
-	);
-	fflush(stdout);
-
 	// Checks primality 
 	if (isPrime(numToTest)){
 		*result = numToTest;
@@ -93,9 +78,6 @@ static int isPrime(int n){
 		checkTime();
 	}
 	
-	/* DEBUG */
-	while(1) checkTime();
-
 	// If no factors have been found, the number is prime
 	return 1;
 }

@@ -58,19 +58,6 @@ int main(int argc, char * argv[]){
 	// Stores the name of the output file
 	filePath = opts.outputFileName;
 
-	/* DEBUG */
-        printf("n - %d\nnStr - %s\ns - %d\nsStr - %s\nb - %d\nbStr - %s\ni - %d\niStr - %s\no - %s\n",
-                opts.numChildrenTotal,
-                opts.numChildrenTotalStr,
-                opts.simultaneousChildren,
-                opts.simultaneousChildrenStr,
-                opts.beginningIntTested,
-                opts.beginningIntTestedStr,
-                opts.increment,
-                opts.incrementStr,
-                opts.outputFileName
-        );
-
 	// Creates and initializes shared memory region
 	bufferSize = sizeof(Clock) + opts.numChildrenTotal * sizeof(int);
 	shm = (char *) sharedMemory(bufferSize, IPC_CREAT);
@@ -89,9 +76,11 @@ int main(int argc, char * argv[]){
 static void addSignalHandlers(){
 	struct sigaction sigact;
 
+	// Initializes sigaction values
 	sigact.sa_handler = cleanUpAndExit;
 	sigact.sa_flags = 0;
 
+	// Assigns signals to sigact
 	if ((sigemptyset(&sigact.sa_mask) == -1) ||
 	    (sigaction(SIGALRM, &sigact, NULL)) == -1 ||
 	    (sigaction(SIGINT, &sigact, NULL))	== -1)
@@ -107,7 +96,6 @@ void cleanUpAndExit(int param){
 
 // Prints clock, detatches from and removes shared memory, and terminates children
 static void cleanUp(){
-	perror("Cleaning up!");
 
 	// Prints curent simulated time to output file
 	if (fp == NULL && (fp = fopen(filePath, "w")) == NULL){
@@ -244,7 +232,6 @@ static int childIndex(pid_t childPid, pid_t * pidArray, int size){
 	for (i = 0; i < size; i++){
 		if (pidArray[i] == childPid){
 			pidArray[i] = 0; // Zeros pid in case it's re-used
-			printf("Index of child %d is %d!\n\n", childPid, i);
 			return i;
 		}
 	}
