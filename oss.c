@@ -32,9 +32,10 @@ static void printResults(FILE * fp, Options opts);
 
 /* Named Constants */
 
-const static Clock CLOCK_INCREMENT = {0, 100000}; // Virtual time increment
+const static Clock CLOCK_INCREMENT = {0, 10000};  // Virtual time increment
 const static char * CHILD_PATH = "./child";	  // Path to child executable
-
+const static int BUFF_SZ = 100;			  // Size of character buffer
+const static int MAX_EXECUTION_SECONDS = 2;	  // Max total execution time
 
 /* Static Global Variables */
 
@@ -49,7 +50,7 @@ int main(int argc, char * argv[]){
 	exeName = argv[0]; // Assigns to global defined in perrorExit.c
 
 	// Sets alarm and signal handling
-	alarm(2);
+	alarm(MAX_EXECUTION_SECONDS);
 	addSignalHandlers();
 
 	// Parses options, printing help and exiting on -h
@@ -92,7 +93,7 @@ void cleanUpAndExit(int param){
 	cleanUp();
 
 	// Prints error message
-	char buff[100];
+	char buff[BUFF_SZ];
 	sprintf(buff,
 		 "%s: Error: Terminating after receiving a signal",
 		 exeName
@@ -107,8 +108,13 @@ static void cleanUp(){
 
 	// Prints curent simulated time to output file
 	if (fp == NULL && (fp = fopen(filePath, "w")) == NULL){
-		perror("Couldn't open file");
+
+		// Prints error message if the file couldn't be open
+		char buff[BUFF_SZ];
+		sprintf(buff, "%s: Error: Couldn't open file", exeName);
+		perror(buff);
 	} else {
+		// Prints the time
 		fprintf(fp, "Process terminated at ");
 		printTime(fp, (Clock *)shm);
 		fclose(fp);
@@ -203,13 +209,13 @@ static pid_t createChild(int childIndex, Options opts, int shmSize){
 		testNum = opts.beginningIntTested + childIndex * opts.increment;
 
 		// Converts integer args to strings
-		char index[100];
+		char index[BUFF_SZ];
 		sprintf(index, "%d", childIndex);
 	
-		char toTest[100];
+		char toTest[BUFF_SZ];
 		sprintf(toTest, "%d", testNum);
 
-		char shmSz[100];
+		char shmSz[BUFF_SZ];
 		sprintf(shmSz, "%d", shmSize);
 
 		// Execs child
@@ -245,7 +251,7 @@ static int childIndex(pid_t childPid, pid_t * pidArray, int size){
 	}
 
 	// Exits if no child is found
-	char buf[100];
+	char buf[BUFF_SZ];
 	sprintf(buf, "Couldn't find index of child with pid %d", (int)childPid);
 	perrorExit(buf);
 
@@ -308,7 +314,7 @@ static void printResults(FILE * fp, Options opts){
 		if (array[i] < -1) fprintf(fp, "%d ", -array[i]);
 
 	// Prints numbers the primality of which was not determined
-	fprintf(fp, "\n\nThe primality of the following was not determined"
+	fprintf(fp, "\n\nThe primality of the following was not determined "
 		"due to time constraints:\n"
 	);
 	for (i = 0; i < opts.numChildrenTotal; i++){

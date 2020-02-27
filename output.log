@@ -1,0 +1,31 @@
+000 : 000000000 - Child 0 with pid 14151 created! 
+
+000 : 000000000 - Child 1 with pid 14152 created! 
+
+002 : 724300000 - Child 0 with pid 14151 terminated.
+It found that 5 is prime!
+
+002 : 724300000 - Child 2 with pid 14153 created! 
+
+002 : 724400000 - Child 1 with pid 14152 terminated.
+It found that 7 is prime!
+
+002 : 724400000 - Child 3 with pid 14154 created! 
+
+003 : 824700000 - Child 3 with pid 14154 terminated.
+It found that 11 is prime!
+
+004 : 916100000 - Child 2 with pid 14153 terminated.
+It found that 9 is NOT prime.
+
+
+The following were found to be prime:
+5 7 11 
+
+The following were found NOT to be prime:
+9 
+
+The primality of the following was not determineddue to time constraints:
+
+
+Process terminated at Seconds: 4 Nanoseconds: 916100000
